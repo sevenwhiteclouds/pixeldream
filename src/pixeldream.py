@@ -14,6 +14,8 @@ def term_resize(signum, frame):
   curses.resizeterm(new_win_y, new_win_x)
   stdscr.border()
   stdscr.refresh()
+  stdscr.addstr(0, 2, "PixelDream")
+  stdscr.refresh()
 
 if __name__ == "__main__":
   stdscr = curses.initscr()
@@ -22,10 +24,12 @@ if __name__ == "__main__":
   
   stdscr.border()
   stdscr.refresh()
+  stdscr.addstr(0, 2, "PixelDream")
+  stdscr.refresh()
 
   signal.signal(signal.SIGWINCH, term_resize) 
 
-  time.time(10)
+  time.sleep(10)
 
   stdscr.clear()
   stdscr.refresh()
