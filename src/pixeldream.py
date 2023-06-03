@@ -54,7 +54,10 @@ class Textbox(curses.textpad.Textbox):
     self.mssgs_win.addstr(0, 2, "Messages")
     self.mssgs_win.refresh()
 
-    self.win.clear()
+    # TODO: the 3 lines below resize the win while keep 
+    # what the user typed but it doesn't auto extend
+    # the text if new resolution is longer than before
+    # what is worse, text gets lost if the new resolution is shorter in width.
     self.win.resize(2, term_x - 10)
     self.win.mvwin(term_y - 5, 5)
     self.win.refresh()
