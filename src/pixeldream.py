@@ -8,7 +8,7 @@ import math
 LOCK = threading.Lock()
 
 class Textbox(curses.textpad.Textbox):
-  def __init__(self, win, stdscr, online_win, mssgs_win, input_win, online_pad, insert_mode=False):
+  def __init__(self, win, stdscr, online_win, mssgs_win, input_win, mssgs_pad, insert_mode=False):
     self.win = win
     self.insert_mode = insert_mode
     self._update_max_yx()
@@ -21,7 +21,7 @@ class Textbox(curses.textpad.Textbox):
     self.online_win = online_win
     self.mssgs_win = mssgs_win
     self.input_win = input_win
-    self.online_pad = online_pad
+    self.mssgs_pad = mssgs_pad
 
   def term_resize(self):
     term_y, term_x = self.stdscr.getmaxyx()
@@ -49,9 +49,10 @@ class Textbox(curses.textpad.Textbox):
     self.online_win.addstr(0, 2, "Online")
     self.online_win.refresh()
 
-    # check the TODO found right above the online_thread func
-    self.online_pad.resize(1000, math.ceil(term_x / 3) - 12)
-    self.online_win.refresh()
+    # TODO: logic for online users has not been written, check thread func
+    # and constructor also needs to be updated
+    #self.online_pad.resize(1000, math.ceil(term_x / 3) - 12)
+    #self.online_win.refresh()
 
     self.mssgs_win.clear()
     self.mssgs_win.resize(term_y - 9, math.ceil((term_x / 3) * 2))
@@ -61,7 +62,10 @@ class Textbox(curses.textpad.Textbox):
     self.mssgs_win.addstr(0, 2, "Messages")
     self.mssgs_win.refresh()
 
-    # TODO: the 3 lines below resize the win while keep 
+    self.mssgs_pad.resize(1000, math.ceil(((term_x / 3) * 2 - 2)))
+    self.mssgs_win.refresh()
+
+    # TODO: the 3 lines below resize the win while keeping 
     # what the user typed but it doesn't auto extend
     # the text if new resolution is longer than before
     # what is worse, text gets lost if the new resolution is shorter in width.
@@ -142,27 +146,30 @@ class Textbox(curses.textpad.Textbox):
           self.win.move(y-1, self._end_of_line(y-1))
     return 1
 
-# TODO: online users should be alphabetized
-# so, this logic currently developed here
-# fits incoming messages more than online users.
-# leaving like this for now.
+# TODO: write logic for online users
 def online_thread(online_pad, online_win):
-  # TODO: remove this counter, just for testing/generating "users" online
+  # this is a placeholder
+  print("Hello, World!")
+
+def mssgs_thread(mssgs_pad, mssgs_win, stdscr):
+  # TODO: remove this counter, just for testing/generating fake incoming mssgs
   counter = 0
 
   while True:
     counter += 1
-    y, x = online_win.getmaxyx()
-    y_cursor, x_cursor = online_pad.getyx()
+
+    term_y, term_x = stdscr.getmaxyx()
+    y, x = mssgs_win.getmaxyx()
+    y_cursor, x_cursor = mssgs_pad.getyx()
 
     if (y_cursor - y) < -2:
       scroll = 0
     else:
       scroll = (y_cursor - y) + 3
 
-    online_pad.addstr(f"user {counter}\n")
+    mssgs_pad.addstr(f"message {counter}\n")
 
-    online_pad.refresh(scroll, 0, 3, 6, y, x)
+    mssgs_pad.refresh(scroll, 0, 3, math.floor(term_x / 3) - 2, y, x)
     time.sleep(.25)
 
 if __name__ == "__main__":
@@ -194,13 +201,17 @@ if __name__ == "__main__":
 
   # TODO: change 1000 lines, not good to hard code like this. ok for now.
   # once this hard coding is fixed, also make sure to fix in the resizing
-  online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
+  #online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
+  #online_thread = threading.Thread(target = online_thread, args = (online_pad, online_win, ))
+  #online_thread.start()
 
-  online_thread = threading.Thread(target = online_thread, args = (online_pad, online_win, ))
-  online_thread.start()
+  # TODO: read the comments above, it also applies to this
+  mssgs_pad = curses.newpad(1000, math.ceil(((term_x / 3) * 2 - 2)))
+  mssgs_thread = threading.Thread(target = mssgs_thread, args = (mssgs_pad, mssgs_win, stdscr, ))
+  mssgs_thread.start()
 
   txt_box_win = curses.newwin(2, term_x - 10, term_y - 5, 5)
-  txt_box = Textbox(txt_box_win, stdscr, online_win, mssgs_win, input_win, online_pad)
+  txt_box = Textbox(txt_box_win, stdscr, online_win, mssgs_win, input_win, mssgs_pad, )
 
   time.sleep(1)
   while True:
