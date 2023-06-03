@@ -5,8 +5,10 @@ import curses.textpad
 import socket
 import math
 
+LOCK = threading.Lock()
+
 class Textbox(curses.textpad.Textbox):
-  def __init__(self, win, stdscr, online_win, mssgs_win, input_win, insert_mode=False):
+  def __init__(self, win, stdscr, online_win, mssgs_win, input_win, online_pad, insert_mode=False):
     self.win = win
     self.insert_mode = insert_mode
     self._update_max_yx()
@@ -19,6 +21,7 @@ class Textbox(curses.textpad.Textbox):
     self.online_win = online_win
     self.mssgs_win = mssgs_win
     self.input_win = input_win
+    self.online_pad = online_pad
 
   def term_resize(self):
     term_y, term_x = self.stdscr.getmaxyx()
@@ -44,6 +47,10 @@ class Textbox(curses.textpad.Textbox):
     self.online_win.border()
     self.online_win.refresh()
     self.online_win.addstr(0, 2, "Online")
+    self.online_win.refresh()
+
+    # check the TODO found right above the online_thread func
+    self.online_pad.resize(1000, math.ceil(term_x / 3) - 12)
     self.online_win.refresh()
 
     self.mssgs_win.clear()
@@ -135,6 +142,29 @@ class Textbox(curses.textpad.Textbox):
           self.win.move(y-1, self._end_of_line(y-1))
     return 1
 
+# TODO: online users should be alphabetized
+# so, this logic currently developed here
+# fits incoming messages more than online users.
+# leaving like this for now.
+def online_thread(online_pad, online_win):
+  # TODO: remove this counter, just for testing/generating "users" online
+  counter = 0
+
+  while True:
+    counter += 1
+    y, x = online_win.getmaxyx()
+    y_cursor, x_cursor = online_pad.getyx()
+
+    if (y_cursor - y) < -2:
+      scroll = 0
+    else:
+      scroll = (y_cursor - y) + 3
+
+    online_pad.addstr(f"user {counter}\n")
+
+    online_pad.refresh(scroll, 0, 3, 6, y, x)
+    time.sleep(.25)
+
 if __name__ == "__main__":
   stdscr = curses.initscr()
   curses.noecho()
@@ -162,9 +192,17 @@ if __name__ == "__main__":
   mssgs_win.addstr(0, 2, "Messages")
   mssgs_win.refresh()
 
-  txt_box_win = curses.newwin(2, term_x - 10, term_y - 5, 5)
-  txt_box = Textbox(txt_box_win, stdscr, online_win, mssgs_win, input_win)
+  # TODO: change 1000 lines, not good to hard code like this. ok for now.
+  # once this hard coding is fixed, also make sure to fix in the resizing
+  online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
 
+  online_thread = threading.Thread(target = online_thread, args = (online_pad, online_win, ))
+  online_thread.start()
+
+  txt_box_win = curses.newwin(2, term_x - 10, term_y - 5, 5)
+  txt_box = Textbox(txt_box_win, stdscr, online_win, mssgs_win, input_win, online_pad)
+
+  time.sleep(1)
   while True:
     txt_box_win.clear()
 
