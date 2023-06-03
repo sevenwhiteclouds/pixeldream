@@ -137,7 +137,7 @@ if __name__ == "__main__":
   curses.noecho()
   curses.cbreak()
 
-  term_x, term_y = os.get_terminal_size()
+  term_y, term_x = stdscr.getmaxyx()
 
   stdscr.border()
   stdscr.refresh()
