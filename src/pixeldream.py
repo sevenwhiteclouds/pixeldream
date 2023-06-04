@@ -17,7 +17,7 @@ class Textbox(curses.textpad.Textbox):
     self.lastcmd = None
     win.keypad(1)
 
-    # overriding Textbox, extended custom variables for resizing
+    # extending Textbox class for custom variables for resizing
     self.stdscr = stdscr
     self.online_win = online_win
     self.mssgs_win = mssgs_win
@@ -75,7 +75,7 @@ class Textbox(curses.textpad.Textbox):
     self.win.refresh()
 
   def do_command(self, ch):
-    # overriding Textbox, checking to see if we are resizing
+    # extending Textbox class, checking to see if we are resizing
     if ch == curses.KEY_RESIZE:
       self.term_resize()
 
@@ -148,36 +148,41 @@ class Textbox(curses.textpad.Textbox):
     return 1
 
 def get_fserver():
-  # TODO: remove this who putting mssg. this is only for testing, get actual mssgs from server
+  # TODO: remove this after testing, get actual mssgs from server
   mssg = 0
   while True:
-    QUEUE.put(f"message {mssg}")
+    QUEUE.put(f"message {mssg}\n")
     mssg += 1
-    time.sleep(1)
+    time.sleep(.125)
 
 # TODO: write logic for online users
 def online_thread(online_pad, online_win):
   # this is a placeholder
   print("Hello, World!")
 
+# TODO: text wrap partially works, the only issue
+# now is that text doesn't extend if new res is greater in width than previous
 def mssgs_thread(mssgs_pad, mssgs_win, stdscr):
   while True:
     time.sleep(.25)
+
     term_y, term_x = stdscr.getmaxyx()
     y, x = mssgs_win.getmaxyx()
+    x += math.floor(term_x / 3) - 6
     y_cursor, x_cursor = mssgs_pad.getyx()
 
+    # perhaps the solution to the TODO above is something similar to this but for the x value?
     if (y_cursor - y) < -2:
       scroll = 0
     else:
       scroll = (y_cursor - y) + 3
 
     try:
-      mssgs_pad.addstr(f"{QUEUE.get_nowait()}\n")
+      mssgs_pad.addstr(f"{QUEUE.get_nowait()}")
     except queue.Empty:
       continue
     finally:
-      mssgs_pad.refresh(scroll, 0, 3, math.floor(term_x / 3) - 2, y, x)
+      mssgs_pad.refresh(scroll, 0, 3, math.floor(term_x / 3) - 3, y, x)
 
 if __name__ == "__main__":
   stdscr = curses.initscr()
@@ -203,16 +208,17 @@ if __name__ == "__main__":
 
   mssgs_win = curses.newwin(term_y - 9, math.ceil((term_x / 3) * 2), 2, math.floor(term_x / 3) - 4)
   mssgs_win.border()
-  mssgs_win.addstr(0, 2, "Messages")
+  #mssgs_win.addstr(0, 2, "Messages")
+  mssgs_win.addstr(0, 2, f"{math.ceil((term_x / 3) * 2)}")
   mssgs_win.refresh()
 
   get_fserver_thread = threading.Thread(target = get_fserver)
   get_fserver_thread.start()
   # TODO: change 1000 lines, not good to hard code like this. ok for now.
   # once this hard coding is fixed, also make sure to fix in the resizing
-  #online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
-  #online_thread = threading.Thread(target = online_thread, args = (online_pad, online_win, ))
-  #online_thread.start()
+  # online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
+  # online_thread = threading.Thread(target = online_thread, args = (online_pad, online_win, ))
+  # online_thread.start()
 
   # TODO: read the comments above, it also applies to this
   mssgs_pad = curses.newpad(1000, math.ceil(((term_x / 3) * 2 - 2)))
