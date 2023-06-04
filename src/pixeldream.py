@@ -4,8 +4,9 @@ import curses
 import curses.textpad
 import socket
 import math
+import queue
 
-LOCK = threading.Lock()
+QUEUE = queue.Queue(0)
 
 class Textbox(curses.textpad.Textbox):
   def __init__(self, win, stdscr, online_win, mssgs_win, input_win, mssgs_pad, insert_mode=False):
@@ -146,18 +147,22 @@ class Textbox(curses.textpad.Textbox):
           self.win.move(y-1, self._end_of_line(y-1))
     return 1
 
+def get_fserver():
+  # TODO: remove this who putting mssg. this is only for testing, get actual mssgs from server
+  mssg = 0
+  while True:
+    QUEUE.put(f"message {mssg}")
+    mssg += 1
+    time.sleep(1)
+
 # TODO: write logic for online users
 def online_thread(online_pad, online_win):
   # this is a placeholder
   print("Hello, World!")
 
 def mssgs_thread(mssgs_pad, mssgs_win, stdscr):
-  # TODO: remove this counter, just for testing/generating fake incoming mssgs
-  counter = 0
-
   while True:
-    counter += 1
-
+    time.sleep(.25)
     term_y, term_x = stdscr.getmaxyx()
     y, x = mssgs_win.getmaxyx()
     y_cursor, x_cursor = mssgs_pad.getyx()
@@ -167,10 +172,12 @@ def mssgs_thread(mssgs_pad, mssgs_win, stdscr):
     else:
       scroll = (y_cursor - y) + 3
 
-    mssgs_pad.addstr(f"message {counter}\n")
-
-    mssgs_pad.refresh(scroll, 0, 3, math.floor(term_x / 3) - 2, y, x)
-    time.sleep(.25)
+    try:
+      mssgs_pad.addstr(f"{QUEUE.get_nowait()}\n")
+    except queue.Empty:
+      continue
+    finally:
+      mssgs_pad.refresh(scroll, 0, 3, math.floor(term_x / 3) - 2, y, x)
 
 if __name__ == "__main__":
   stdscr = curses.initscr()
@@ -199,6 +206,8 @@ if __name__ == "__main__":
   mssgs_win.addstr(0, 2, "Messages")
   mssgs_win.refresh()
 
+  get_fserver_thread = threading.Thread(target = get_fserver)
+  get_fserver_thread.start()
   # TODO: change 1000 lines, not good to hard code like this. ok for now.
   # once this hard coding is fixed, also make sure to fix in the resizing
   #online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
