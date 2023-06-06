@@ -6,6 +6,8 @@ import socket
 import math
 import queue
 
+SERVER = "localhost"
+PORT = 1337
 QUEUE = queue.Queue(0)
 
 class Textbox(curses.textpad.Textbox):
@@ -147,13 +149,14 @@ class Textbox(curses.textpad.Textbox):
           self.win.move(y-1, self._end_of_line(y-1))
     return 1
 
-def get_fserver():
-  # TODO: remove this after testing, get actual mssgs from server
-  mssg = 0
+def get_fserver(conn):
   while True:
-    QUEUE.put(f"message {mssg}\n")
-    mssg += 1
-    time.sleep(.125)
+    mssg = conn.recv(1024).decode()
+    
+    if mssg:
+      QUEUE.put()
+    else:
+      break
 
 # TODO: write logic for online users
 def online_thread(online_pad, online_win):
@@ -178,13 +181,16 @@ def mssgs_thread(mssgs_pad, mssgs_win, stdscr):
       scroll = (y_cursor - y) + 3
 
     try:
-      mssgs_pad.addstr(f"{QUEUE.get_nowait()}")
+      mssgs_pad.addstr(f"{QUEUE.get_nowait()}\n")
     except queue.Empty:
       continue
     finally:
       mssgs_pad.refresh(scroll, 0, 3, math.floor(term_x / 3) - 3, y, x)
 
 if __name__ == "__main__":
+  conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  conn.connect((SERVER, PORT))
+
   stdscr = curses.initscr()
   curses.noecho()
   curses.cbreak()
@@ -212,7 +218,7 @@ if __name__ == "__main__":
   mssgs_win.addstr(0, 2, f"{math.ceil((term_x / 3) * 2)}")
   mssgs_win.refresh()
 
-  get_fserver_thread = threading.Thread(target = get_fserver)
+  get_fserver_thread = threading.Thread(target = get_fserver, args = (conn, ))
   get_fserver_thread.start()
   # TODO: change 1000 lines, not good to hard code like this. ok for now.
   # once this hard coding is fixed, also make sure to fix in the resizing
