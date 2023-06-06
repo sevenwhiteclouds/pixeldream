@@ -8,7 +8,8 @@ import queue
 
 SERVER = "localhost"
 PORT = 1337
-QUEUE = queue.Queue(0)
+QUEUE_RECV = queue.Queue(0)
+QUEUE_SEND = queue.Queue(0)
 
 class Textbox(curses.textpad.Textbox):
   def __init__(self, win, stdscr, online_win, mssgs_win, input_win, mssgs_pad, insert_mode=False):
@@ -154,9 +155,14 @@ def get_fserver(conn):
     mssg = conn.recv(1024).decode()
     
     if mssg:
-      QUEUE.put()
+      QUEUE_RECV.put(mssg)
     else:
       break
+
+def push_tserver(conn):
+  while True:
+    mssg = QUEUE_SEND.get()
+    conn.send(mssg.encode())
 
 # TODO: write logic for online users
 def online_thread(online_pad, online_win):
@@ -181,13 +187,16 @@ def mssgs_thread(mssgs_pad, mssgs_win, stdscr):
       scroll = (y_cursor - y) + 3
 
     try:
-      mssgs_pad.addstr(f"{QUEUE.get_nowait()}\n")
+      mssgs_pad.addstr(f"{QUEUE_RECV.get_nowait()}\n")
     except queue.Empty:
       continue
     finally:
       mssgs_pad.refresh(scroll, 0, 3, math.floor(term_x / 3) - 3, y, x)
 
 if __name__ == "__main__":
+  display_name = input("Enter display name: ")
+  QUEUE_SEND.put(display_name)
+
   conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   conn.connect((SERVER, PORT))
 
@@ -214,9 +223,11 @@ if __name__ == "__main__":
 
   mssgs_win = curses.newwin(term_y - 9, math.ceil((term_x / 3) * 2), 2, math.floor(term_x / 3) - 4)
   mssgs_win.border()
-  #mssgs_win.addstr(0, 2, "Messages")
-  mssgs_win.addstr(0, 2, f"{math.ceil((term_x / 3) * 2)}")
+  mssgs_win.addstr(0, 2, "Messages")
   mssgs_win.refresh()
+
+  push_tserver_thread = threading.Thread(target = push_tserver, args = (conn, ))
+  push_tserver_thread.start()
 
   get_fserver_thread = threading.Thread(target = get_fserver, args = (conn, ))
   get_fserver_thread.start()

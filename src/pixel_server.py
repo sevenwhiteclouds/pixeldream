@@ -11,7 +11,7 @@ def delv_mssgs(clients):
     mssg = QUEUE.get()
 
     for i in clients:
-      clients.send(mssg.encode())
+      i.send(mssg.encode())
 
 def client_thread(conn, addr):
   print(f"Connected to {addr} on port ({PORT})")
@@ -25,6 +25,7 @@ def client_thread(conn, addr):
         display_name = mssg
         mssg += " joined the chat!"
 
+      print(f"Received {mssg} from {addr} on port ({PORT})")
       QUEUE.put(mssg)
     else:
       conn.close()
