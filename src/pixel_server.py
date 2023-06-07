@@ -5,6 +5,7 @@ import queue
 
 QUEUE = queue.Queue(0)
 PORT = 1337
+LOCK = threading.Lock()
 
 def delv_mssgs(clients):
   while True:
@@ -13,23 +14,27 @@ def delv_mssgs(clients):
     for i in clients:
       i.send(mssg.encode())
 
-def client_thread(conn, addr):
+def client_thread(conn, addr, clients):
   print(f"Connected to {addr} on port ({PORT})")
   display_name = ""
 
   while True:
     mssg = conn.recv(1024).decode()
-
-    if mssg:
+    
+    if not mssg:
+      pos = clients.index(conn)
+      clients.pop(pos)
+      QUEUE.put(f"{display_name} left the chat!")
+      break
+    else:  
       if not display_name:
         display_name = mssg
         mssg += " joined the chat!"
-
+        QUEUE.put(mssg)
+      else:
+        QUEUE.put(f"{display_name}: {mssg}")
+        
       print(f"Received {mssg} from {addr} on port ({PORT})")
-      QUEUE.put(mssg)
-    else:
-      conn.close()
-      break
 
 if __name__ == "__main__":
   open_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -42,4 +47,4 @@ if __name__ == "__main__":
   while True:
     conn, addr = open_socket.accept()
     clients.append(conn)
-    threading.Thread(target = client_thread, args = (conn, addr)).start()
+    threading.Thread(target = client_thread, args = (conn, addr, clients)).start()

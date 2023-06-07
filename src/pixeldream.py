@@ -1,5 +1,6 @@
 import threading
 import time
+import signal
 import curses
 import curses.textpad
 import socket
@@ -152,17 +153,21 @@ class Textbox(curses.textpad.Textbox):
 
 def get_fserver(conn):
   while True:
-    mssg = conn.recv(1024).decode()
-    
-    if mssg:
+    try:
+      mssg = conn.recv(1024).decode()
       QUEUE_RECV.put(mssg)
-    else:
+    # user is trying to quit
+    except IOError:
       break
 
 def push_tserver(conn):
   while True:
-    mssg = QUEUE_SEND.get()
-    conn.send(mssg.encode())
+    try:
+      mssg = QUEUE_SEND.get()
+      conn.send(mssg.encode())
+    # ioerror here would mean that user is trying to quit
+    except IOError:
+      break
 
 # TODO: write logic for online users
 def online_thread(online_pad, online_win):
@@ -187,9 +192,11 @@ def mssgs_thread(mssgs_pad, mssgs_win, stdscr):
       scroll = (y_cursor - y) + 3
 
     try:
-      mssgs_pad.addstr(f"{QUEUE_RECV.get_nowait()}\n")
+      mssg = QUEUE_RECV.get_nowait()
     except queue.Empty:
       continue
+    else:
+      mssgs_pad.addstr(f"{mssg}\n")
     finally:
       mssgs_pad.refresh(scroll, 0, 3, math.floor(term_x / 3) - 3, y, x)
 
@@ -226,11 +233,12 @@ if __name__ == "__main__":
   mssgs_win.addstr(0, 2, "Messages")
   mssgs_win.refresh()
 
-  push_tserver_thread = threading.Thread(target = push_tserver, args = (conn, ))
+  push_tserver_thread = threading.Thread(target = push_tserver, args = (conn, ), daemon = True)
   push_tserver_thread.start()
 
-  get_fserver_thread = threading.Thread(target = get_fserver, args = (conn, ))
+  get_fserver_thread = threading.Thread(target = get_fserver, args = (conn, ), daemon = True)
   get_fserver_thread.start()
+
   # TODO: change 1000 lines, not good to hard code like this. ok for now.
   # once this hard coding is fixed, also make sure to fix in the resizing
   # online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
@@ -239,7 +247,9 @@ if __name__ == "__main__":
 
   # TODO: read the comments above, it also applies to this
   mssgs_pad = curses.newpad(1000, math.ceil(((term_x / 3) * 2 - 2)))
-  mssgs_thread = threading.Thread(target = mssgs_thread, args = (mssgs_pad, mssgs_win, stdscr, ))
+
+  # since this thread doesn't block, killing with daemon status (not like the others)
+  mssgs_thread = threading.Thread(target = mssgs_thread, args = (mssgs_pad, mssgs_win, stdscr, ), daemon = True)
   mssgs_thread.start()
 
   txt_box_win = curses.newwin(2, term_x - 10, term_y - 5, 5)
@@ -248,11 +258,13 @@ if __name__ == "__main__":
   time.sleep(1)
   while True:
     txt_box_win.clear()
-
     txt_input = txt_box.edit().strip()
 
     if txt_input == "!bye":
+      conn.close()
       break
+    else:
+      QUEUE_SEND.put(txt_input)
 
   stdscr.clear()
   stdscr.refresh()
