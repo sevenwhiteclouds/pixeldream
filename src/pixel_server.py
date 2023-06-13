@@ -19,7 +19,10 @@ def client_thread(conn, addr, clients):
   display_name = ""
 
   while True:
-    mssg = conn.recv(1024).decode()
+    try:
+      mssg = conn.recv(1024).decode()
+    except IOError:
+      break
     
     if not mssg:
       pos = clients.index(conn)
@@ -42,9 +45,17 @@ if __name__ == "__main__":
   open_socket.listen(1)
 
   clients = []
-  threading.Thread(target = delv_mssgs, args = (clients, )).start()
+  delv_mssgs_thread = threading.Thread(target = delv_mssgs, args = (clients, ), daemon = True)
+  delv_mssgs_thread.start()
 
   while True:
-    conn, addr = open_socket.accept()
-    clients.append(conn)
-    threading.Thread(target = client_thread, args = (conn, addr, clients)).start()
+    try:
+      conn, addr = open_socket.accept()
+      clients.append(conn)
+      threading.Thread(target = client_thread, args = (conn, addr, clients)).start()
+    except KeyboardInterrupt:
+      print("\b\bServer quit... bye!")
+      break
+  
+  for i in clients:
+    i.close()

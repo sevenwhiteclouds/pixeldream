@@ -11,6 +11,7 @@ SERVER = "localhost"
 PORT = 1337
 QUEUE_RECV = queue.Queue(0)
 QUEUE_SEND = queue.Queue(0)
+QUEUE_ONLINE = queue.Queue(0)
 
 class Textbox(curses.textpad.Textbox):
   def __init__(self, win, stdscr, online_win, mssgs_win, input_win, mssgs_pad, insert_mode=False):
@@ -154,8 +155,18 @@ class Textbox(curses.textpad.Textbox):
 def get_fserver(conn):
   while True:
     try:
+      # TODO: handle server disconnects with a "not mssg"
       mssg = conn.recv(1024).decode()
-      QUEUE_RECV.put(mssg)
+
+      if "joined the chat!" in mssg:  
+        online_up = mssg.split(" ")
+        QUEUE_ONLINE.put(online_up)
+      elif "left the chat!" in mssg:
+        online_up = mssg.split(" ")
+        QUEUE_ONLINE.put(online_up)
+      else:
+        QUEUE_RECV.put(mssg)
+
     # user is trying to quit
     except IOError:
       break
@@ -170,9 +181,32 @@ def push_tserver(conn):
       break
 
 # TODO: write logic for online users
-def online_thread(online_pad, online_win):
-  # this is a placeholder
-  print("Hello, World!")
+def online_thread(online_pad, online_win, stdscr):
+  while True:
+    time.sleep(.25)
+
+    term_y, term_x = stdscr.getmaxyx()
+    y, x = online_win.getmaxyx()
+    #x += math.floor(term_x / 3) - 6
+    y_cursor, x_cursor = online_pad.getyx()
+
+    # perhaps the solution to the TODO above is something similar to this but for the x value?
+    if (y_cursor - y) < -2:
+      scroll = 0
+    else:
+      scroll = (y_cursor - y) + 3
+
+    try:
+      mssg = QUEUE_ONLINE.get_nowait()
+    except queue.Empty:
+      continue
+    else:
+      if mssg[1] == "joined":
+        online_pad.addstr(f"{mssg[0]}\n")
+      else:
+        online_pad.addstr(f"yup\n")
+    finally:
+      online_pad.refresh(scroll, 0, 3, 5, y, x)
 
 # TODO: text wrap partially works, the only issue
 # now is that text doesn't extend if new res is greater in width than previous
@@ -208,8 +242,9 @@ if __name__ == "__main__":
   conn.connect((SERVER, PORT))
 
   stdscr = curses.initscr()
-  curses.noecho()
   curses.cbreak()
+  curses.noecho()
+  curses.curs_set(0)
 
   term_y, term_x = stdscr.getmaxyx()
 
@@ -241,13 +276,12 @@ if __name__ == "__main__":
 
   # TODO: change 1000 lines, not good to hard code like this. ok for now.
   # once this hard coding is fixed, also make sure to fix in the resizing
-  # online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
-  # online_thread = threading.Thread(target = online_thread, args = (online_pad, online_win, ))
-  # online_thread.start()
+  # this also applies the mssgs_pad below.
+  online_pad = curses.newpad(1000, math.ceil(term_x / 3) - 14)
+  online_thread = threading.Thread(target = online_thread, args = (online_pad, online_win, stdscr), daemon = True)
+  online_thread.start()
 
-  # TODO: read the comments above, it also applies to this
   mssgs_pad = curses.newpad(1000, math.ceil(((term_x / 3) * 2 - 2)))
-
   # since this thread doesn't block, killing with daemon status (not like the others)
   mssgs_thread = threading.Thread(target = mssgs_thread, args = (mssgs_pad, mssgs_win, stdscr, ), daemon = True)
   mssgs_thread.start()
